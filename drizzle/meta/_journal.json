@@ -15,6 +15,13 @@
       "when": 1749022539565,
       "tag": "0001_fine_galactus",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1749199917963,
+      "tag": "0002_remarkable_mister_sinister",
+      "breakpoints": true
     }
   ]
 }

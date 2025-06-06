@@ -17,6 +17,7 @@ export const ProductTable = pgTable("products" , {
     userId : uuid().notNull().references(()=> UserTable.id , {onDelete : 'cascade'}),
     name : text("name").notNull(),
     description : text("description"),
+    url: text("url").notNull(),
     createdAt,
     updatedAt
 },(table) => [

@@ -5,6 +5,7 @@ import Link from "next/link"
 import { ArrowRightIcon, PlusIcon } from "lucide-react"
 import { Button } from "../../components/ui/button"
 import { NoProducts } from "./_components/NoProducts"
+import { ProductGrid } from "./_components/ProductGrid"
 
 
 export default async function Page(){
@@ -33,7 +34,7 @@ export default async function Page(){
           </Link>
         </Button>
       </h2>
-      {/* <ProductGrid products={products} /> */}
+      <ProductGrid products={products} />
       <h2 className="mb-6 text-3xl font-semibold flex justify-between mt-12">
         <Link
           href="/dashboard/analytics"
