@@ -1,9 +1,9 @@
 "use server"
 
-import { eq } from "drizzle-orm"
+import {  and, eq, inArray, sql } from "drizzle-orm"
 import db from "../index"
-import { ProductCustomizationTable, ProductTable } from "../db/schema"
-import { productDetailsSchema } from "../schemaType"
+import { CountryGroupDiscountTable, ProductCustomizationTable, ProductTable } from "../db/schema"
+import { productCountryDiscountsSchema, productDetailsSchema } from "../schemaType"
 import { getUser } from "./auth"
 import { z } from "zod"
 import { redirect } from "next/navigation"
@@ -15,6 +15,13 @@ export async function getProducts(userId : string){
 
     return products
 }
+export async function getProduct(productId : string){
+    
+    const products = await db.query.ProductTable.findFirst({where : eq(ProductTable.id , productId)})
+
+    return products
+}
+
 
 export async function CreateProducts(rawData : z.infer<typeof productDetailsSchema>) : Promise<{error : boolean ; message : string} | undefined> {
      
@@ -75,4 +82,111 @@ try {
 
 
      
+}
+
+export async function getProductCountryGroups({  productId} : {  productId : string}){
+    const product = await db.query.ProductTable.findFirst({where : eq(ProductTable.id , productId)})
+    if (product == null) return []
+
+    const data = await db.query.CountryGroupTable.findMany({
+        with : {
+            countries : {
+                columns : {
+                    name : true,
+                    code : true,
+                },
+            },
+            countryGroupDiscounts : {
+                columns: {
+                    coupon:true,
+                    discountPercentage : true
+                },
+                where : eq(CountryGroupDiscountTable.productId , productId),
+                limit : 1
+            }
+        }
+    })
+    
+    return data.map(group => {
+        return {
+            id : group.id,
+            name : group.name,
+            recommendedDiscountPercentage : group.recommendedDiscountPercentage,
+            countries : group.countries,
+            discount : group.countryGroupDiscounts.at(0),
+        }
+    })
+
+}
+
+
+export async function updateCountryDiscounts(
+    id : string , 
+    unsafeData : z.infer<typeof productCountryDiscountsSchema>
+){
+        const {data , success} = productCountryDiscountsSchema.safeParse(unsafeData)
+        
+        if(!success){
+            return {error : true , message:"There was an error creating your product"}
+        }
+
+        const insert: {
+            countryGroupId : string 
+            productId : string
+            coupon : string 
+            discountPercentage : number
+        }[] = []
+        const deleteIds : {countryGroupId : string }[] = []
+
+        data.groups.forEach(group =>{
+            if(
+                group.coupon != null &&
+                group.coupon.length > 0 &&
+                group.discountPercentage != null &&
+                group.discountPercentage > 0
+            ) {
+                insert.push({
+                    countryGroupId : group.countryGroupId,
+                    coupon : group.coupon,
+                    discountPercentage : group.discountPercentage / 100,
+                    productId : id,
+                })
+            }else {
+                deleteIds.push({ countryGroupId : group.countryGroupId})
+            }
+        })
+
+      const statements : BatchItem<"pg">[] = []
+      if ( deleteIds.length > 0){
+        statements.push(db.delete(CountryGroupDiscountTable).where(
+            and(
+                eq(CountryGroupDiscountTable.productId , id),
+                inArray(
+                    CountryGroupDiscountTable.countryGroupId , 
+                    deleteIds.map(group => group.countryGroupId)
+                )
+            )
+        ))
+      }  
+
+        if(insert.length > 0 ) {
+            statements.push(
+                db.insert(CountryGroupDiscountTable).values(insert).onConflictDoUpdate({
+                    target : [
+                        CountryGroupDiscountTable.productId,
+                        CountryGroupDiscountTable.countryGroupId,
+                    ],
+                    set : {
+                        coupon : sql.raw(
+                            `excluded.${CountryGroupDiscountTable.coupon.name}`
+                        ),
+                        discountPercentage : sql.raw(
+                            `excluded.${CountryGroupDiscountTable.discountPercentage.name}`
+                        ),
+                    }
+
+                })
+
+            )
+        }
 }
