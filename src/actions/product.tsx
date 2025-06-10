@@ -1,12 +1,13 @@
 "use server"
 
-import {  and, eq, inArray, sql } from "drizzle-orm"
+import {  and, eq, inArray, sql, SQLWrapper } from "drizzle-orm"
 import db from "../index"
-import { CountryGroupDiscountTable, ProductCustomizationTable, ProductTable } from "../db/schema"
-import { productCountryDiscountsSchema, productDetailsSchema } from "../schemaType"
+import { CountryGroupDiscountTable, CountryTable, ProductCustomizationTable, ProductTable } from "../db/schema"
+import { productCountryDiscountsSchema, productCustomizationSchema, productDetailsSchema } from "../schemaType"
 import { getUser } from "./auth"
 import { z } from "zod"
 import { redirect } from "next/navigation"
+import { canCustomizeBanner } from "./permission"
 
 
 export async function getProducts(userId : string){
@@ -156,7 +157,7 @@ export async function updateCountryDiscounts(
             }
         })
 
-      const statements : BatchItem<"pg">[] = []
+      const statements : SQLWrapper[] = []
       if ( deleteIds.length > 0){
         statements.push(db.delete(CountryGroupDiscountTable).where(
             and(
@@ -189,4 +190,114 @@ export async function updateCountryDiscounts(
 
             )
         }
+
+        await db.transaction(async (tsx)=>{
+            for(const stmt of statements){
+                await tsx.execute(stmt)
+            }
+        })
+
+        return { error : false , message : "Country discounts saved"}
 }
+
+export async function getProductCustomization({
+    productId
+} : {
+    productId : string 
+}){
+       const data = await db.query.ProductTable.findFirst({
+        where : eq(ProductTable.id , productId),
+        with : {
+            ProductCustomizable : true
+        }
+       }) 
+
+       return data?.ProductCustomizable
+}
+
+export async function getProductCount( userId : string) {
+    const res = await db.execute(
+        sql`select count(*) from ${ProductTable} where ${eq(ProductTable.userId , userId)}`
+    )
+     const count = Number(res.rows[0].count);
+    return count
+}
+
+export async function updateProductCustomization(
+    productId : string  , rawData : z.infer<typeof productCustomizationSchema>
+){
+const user = getUser()
+const {success , data} = productCustomizationSchema.safeParse(rawData)
+const canCustomize = await canCustomizeBanner()
+
+  if(!success || !user || !canCustomize){
+    return {
+        error : true,
+        message : "There was an error updating your banner",
+    }
+  }
+
+    await db.update(ProductCustomizationTable).set(data).where(eq(ProductCustomizationTable.productId , productId))
+    return { error : false , message : "Banner updated"}
+}
+
+export async function getProductForBanner({
+    id , countryCode , url
+} : {
+    id : string , 
+    countryCode : string ,
+    url : string
+}) {
+    const data = await db.query.ProductTable.findFirst({
+        where : and(eq(ProductTable.id , id),eq(ProductTable.url , url)),
+        columns : {
+            id: true,
+            userId : true
+        },
+        with : {
+            ProductCustomizable : true , 
+            countryGroupDiscounts : {
+                columns : {
+                    coupon : true , 
+                    discountPercentage : true
+                },
+                with : {
+                    countryGroup : {
+                        columns : {},
+                        with : {
+                            countries : {
+                                columns : {
+                                    id : true ,
+                                    name : true
+                                }, limit : 1,
+                                where : eq(CountryTable.code , countryCode)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    })
+
+    const discount = data?.countryGroupDiscounts.find(discount => discount.countryGroup.countries.length > 0 )
+    const country = discount?.countryGroup.countries[0]
+    const product = data == null || data.ProductCustomizable == null  ? undefined : {
+        id : data.id,
+        userId : data.userId,
+        customization : data.ProductCustomizable
+    }
+   
+
+    return {
+        product ,
+        country , 
+        discount : discount == null ? undefined : {
+            coupon : discount.coupon , 
+            percentage : discount.discountPercentage
+        }
+    } 
+
+}
+
+
+

@@ -1,6 +1,4 @@
-import { CountryDiscountsForm } from "@/app/dashboard/_components/forms/CountryDiscountsForm"
-import { ProductCustomizationForm } from "@/app/dashboard/_components/forms/ProductCustomizationForm"
-import { ProductDetailsForm } from "@/app/dashboard/_components/forms/ProductDeailsForm"
+
 import { PageWithBackButton } from "@/app/dashboard/_components/PageWithBackButton"
 import {
   Card,
@@ -11,9 +9,12 @@ import {
 } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
-import { canCustomizeBanner, canRemoveBranding } from "@/server/permissions"
 import { notFound } from "next/navigation"
-import { getProducts } from "../../../../../actions/product"
+import { getProduct, getProductCountryGroups, getProductCustomization } from "../../../../../actions/product"
+import { ProductDetailsForm } from "../../../_components/forms/ProductDetailForm"
+import { CountryDiscountsForm } from "../../../_components/forms/CountryDiscountForm"
+import { canCustomizeBanner, canRemoveBranding } from "../../../../../actions/permission"
+import { ProductCustomizationForm } from "../../../_components/forms/ProductCustomizationForm"
 
 export default async function EditProductPage({
   params,
@@ -24,7 +25,7 @@ export default async function EditProductPage({
 }) {
 
      const {productId} = params
-  const product = await getProducts(productId)
+  const product = await getProduct(productId)
   if (product == null) return notFound()
 
   return (
@@ -42,10 +43,10 @@ export default async function EditProductPage({
           <DetailsTab product={product} />
         </TabsContent>
         <TabsContent value="countries">
-          <CountryTab productId={productId} userId={userId} />
+          <CountryTab productId={productId}  />
         </TabsContent>
         <TabsContent value="customization">
-          <CustomizationsTab productId={productId} userId={userId} />
+          <CustomizationsTab productId={productId}  />
         </TabsContent>
       </Tabs>
     </PageWithBackButton>
@@ -76,14 +77,14 @@ function DetailsTab({
 
 async function CountryTab({
   productId,
-  userId,
+  
 }: {
   productId: string
-  userId: string
+ 
 }) {
   const countryGroups = await getProductCountryGroups({
     productId,
-    userId,
+    
   })
 
   return (
@@ -107,12 +108,12 @@ async function CountryTab({
 
 async function CustomizationsTab({
   productId,
-  userId,
+  
 }: {
   productId: string
-  userId: string
+  
 }) {
-  const customization = await getProductCustomization({ productId, userId })
+  const customization = await getProductCustomization({ productId })
 
   if (customization == null) return notFound()
 
@@ -123,8 +124,8 @@ async function CustomizationsTab({
       </CardHeader>
       <CardContent>
         <ProductCustomizationForm
-          canRemoveBranding={await canRemoveBranding(userId)}
-          canCustomizeBanner={await canCustomizeBanner(userId)}
+          canRemoveBranding={await canRemoveBranding()}
+          canCustomizeBanner={await canCustomizeBanner()}
           customization={customization}
         />
       </CardContent>

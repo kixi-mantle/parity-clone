@@ -12,7 +12,7 @@ type CountryGroup = {
     countryName: string
   }[]
 }
-
+const typedCountriesByDiscount = countriesByDiscount as CountryGroup[]
 
 const groupCount = await updateCountryGroups()
 const countryCount = await updateCountries()
@@ -21,7 +21,6 @@ console.log(
     `Updated ${groupCount} country groups and ${countryCount} countries`
 )
 
-const typedCountriesByDiscount = countriesByDiscount as CountryGroup[]
 
 async function updateCountryGroups(){
     const countryGroupInsertData = typedCountriesByDiscount.map(({ name , recommendedDiscountPercentage} : Pick<CountryGroup, 'name' | 'recommendedDiscountPercentage'>)=> {

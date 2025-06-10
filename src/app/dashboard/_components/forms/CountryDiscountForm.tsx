@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { customToast } from "../../../../components/ui/sonner"
 import { productCountryDiscountsSchema } from "../../../../schemaType"
+import { updateCountryDiscounts } from "../../../../actions/product"
 
 export function CountryDiscountsForm({
   productId,
@@ -113,9 +114,10 @@ export function CountryDiscountsForm({
                             {...field}
                             type="number"
                             value={field.value ?? ""}
-                            onChange={e =>
-                              field.onChange(e.target.valueAsNumber)
-                            }
+                            onChange={e =>{
+                              const value = e.target.value === "" ? undefined : e.target.valueAsNumber;
+                              field.onChange(value)
+                            }}
                             min="0"
                             max="100"
                           />
